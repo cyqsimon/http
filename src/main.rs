@@ -51,6 +51,7 @@ use std::io::{Write, stdout};
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex, Condvar};
 use hyper_native_tls::NativeTlsServer;
+use itertools::Itertools;
 
 
 fn main() {
@@ -170,7 +171,30 @@ fn result_main() -> Result<(), Error> {
 
         out.flush().unwrap();
     }
+
     if opts.loglevel < options::LogLevel::NoStartup {
+        // addresses on available IFs
+        match get_if_addrs::get_if_addrs() {
+            Ok(v) => {
+                println!("Available on:");
+                let proto = if opts.tls_data.is_none() { "http" } else { "https" };
+                let print_port = match (proto, responder.socket.port()) {
+                    ("http", 80) | ("https", 443) => false,
+                    _ => true,
+                };
+                let port_str = if print_port { format!(":{}", responder.socket.port()) } else { "".into() };
+                v.into_iter()
+                    // loopback first, IPV4 first
+                    .sorted_by_key(|i| (!i.is_loopback() as u8) * 2 + if let get_if_addrs::IfAddr::V4(_) = i.addr { 0 } else { 1 })
+                    .map(|i| match i.addr.ip() {
+                        // IPV6 w/ port format: <proto>://[<addr>]:<port>
+                        ip @ IpAddr::V6(_) if print_port => format!("[{}]", ip),
+                        ip => ip.to_string(),
+                    })
+                    .for_each(|ip| println!("\t{}://{}{}", proto, ip, port_str));
+            }
+            Err(_) => println!("Unable to get available interfaces."),
+        }
         println!("Ctrl-C to stop.");
         println!();
     }
