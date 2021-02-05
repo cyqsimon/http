@@ -41,6 +41,7 @@ clap = "2.33"
 rand = "0.7"
 time = "0.1"
 md6 = "2.0"
+get_if_addrs = "0.5.3"
 
 [dependencies.trivial_colours]
 version = "0.3"
